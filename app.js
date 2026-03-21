@@ -198,8 +198,16 @@ function humanDelay(min = 600, max = 1800) { return sleep(Math.random() * (max -
 async function launchBrowser() {
   return chromium.launch({
     headless: true,
-    args: ['--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage',
-           '--disable-blink-features=AutomationControlled','--window-size=1920,1080'],
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--single-process',          // ← add this for Render
+      '--no-zygote',               // ← add this for Render
+      '--disable-blink-features=AutomationControlled',
+      '--window-size=1920,1080',
+    ],
   });
 }
 
