@@ -198,13 +198,16 @@ function humanDelay(min = 600, max = 1800) { return sleep(Math.random() * (max -
 async function launchBrowser() {
   return chromium.launch({
     headless: true,
+    executablePath: process.env.PLAYWRIGHT_BROWSERS_PATH
+      ? require('playwright').chromium.executablePath()
+      : undefined,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
       '--disable-gpu',
-      '--single-process',          // ← add this for Render
-      '--no-zygote',               // ← add this for Render
+      '--single-process',
+      '--no-zygote',
       '--disable-blink-features=AutomationControlled',
       '--window-size=1920,1080',
     ],
