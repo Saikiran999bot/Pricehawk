@@ -19,8 +19,8 @@
 const CONFIG = {
   // ── Supabase ─────────────────────────────────────────────────────────────
   // Get from: https://supabase.com → your project → Settings → API
-  SUPABASE_URL:         'https://YOUR_PROJECT_ID.supabase.co',
-  SUPABASE_SERVICE_KEY: 'your_service_role_key_here',
+  SUPABASE_URL:         process.env.SUPABASE_URL,
+  SUPABASE_SERVICE_KEY: process.env.SUPABASE_SERVICE_KEY,
 
   // ── Brevo Email (REST API — no SMTP needed) ───────────────────────────────
   // Step 1: https://app.brevo.com → Settings → API Keys → "Create a new API key"
@@ -55,7 +55,7 @@ const path          = require('path');
 const crypto        = require('crypto');
 const axios         = require('axios');
 const cron          = require('node-cron');
-const { chromium }  = require('playwright');
+const puppeteer = require('puppeteer');
 const { createClient }       = require('@supabase/supabase-js');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
@@ -196,11 +196,8 @@ function sleep(ms)  { return new Promise(r => setTimeout(r, ms)); }
 function humanDelay(min = 600, max = 1800) { return sleep(Math.random() * (max - min) + min); }
 
 async function launchBrowser() {
-  return chromium.launch({
-    headless: true,
-    executablePath: process.env.PLAYWRIGHT_BROWSERS_PATH
-      ? require('playwright').chromium.executablePath()
-      : undefined,
+  return puppeteer.launch({
+    headless: 'new',
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -209,27 +206,26 @@ async function launchBrowser() {
       '--single-process',
       '--no-zygote',
       '--disable-blink-features=AutomationControlled',
-      '--window-size=1920,1080',
     ],
   });
 }
-
+createStealthContext():
 async function createStealthContext(browser) {
-  const ctx = await browser.newContext({
-    viewport: { width: 1920, height: 1080 },
-    userAgent: randomUA(),
-    locale: 'en-IN',
-    timezoneId: 'Asia/Kolkata',
-    extraHTTPHeaders: { 'Accept-Language': 'en-IN,en;q=0.9' },
-  });
-  await ctx.addInitScript(() => {
+  const page = await browser.newPage();
+  await page.setUserAgent(randomUA());
+  await page.setViewport({ width: 1920, height: 1080 });
+  await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-IN,en;q=0.9' });
+  await page.evaluateOnNewDocument(() => {
     Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-    Object.defineProperty(navigator, 'plugins',   { get: () => [1,2,3,4,5] });
+    Object.defineProperty(navigator, 'plugins', { get: () => [1,2,3,4,5] });
     window.chrome = { runtime: {} };
   });
-  return ctx;
+  // Return fake "context" object that matches how it's used
+  return {
+    newPage: async () => page,
+    close: async () => {}
+  };
 }
-
 // ─── Amazon ───────────────────────────────────────────────────────────────────
 async function scrapeAmazon(page) {
   await page.waitForSelector('#productTitle, h1', { timeout: 15000 });
@@ -335,7 +331,13 @@ async function scrapeProduct(url, platform = 'other') {
       ctx     = await createStealthContext(browser);
       const page = await ctx.newPage();
 
-      if (attempt > 1) await page.route('**/*.{png,jpg,jpeg,gif,webp,svg,woff,woff2}', r => r.abort());
+      if (attempt > 1) {
+  await page.setRequestInterception(true);
+  page.on('request', req => {
+    if (['image','stylesheet','font'].includes(req.resourceType())) req.abort();
+    else req.continue();
+  });
+      }
 
       // Navigate — Playwright follows redirects automatically (handles dl.flipkart.com etc.)
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 35000 });
